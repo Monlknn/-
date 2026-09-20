@@ -1,0 +1,61 @@
+name: Unzip Source
+
+# 把仓库根目录的 AutoDroid.zip 解压成真正的工程文件。
+# 用法：Actions 页面 → 左侧 "Unzip Source" → Run workflow
+on:
+  workflow_dispatch:
+
+jobs:
+  unzip:
+    name: Unzip
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip AutoDroid.zip
+        run: |
+          set -e
+          if [ ! -f AutoDroid.zip ]; then
+            echo "::error::仓库根目录找不到 AutoDroid.zip"
+            ls -la
+            exit 1
+          fi
+          unzip -o AutoDroid.zip -d .
+          echo "=== 解压完成，根目录 ==="
+          ls -la
+
+      - name: Verify key files
+        run: |
+          set -e
+          miss=0
+          for f in settings.gradle.kts build.gradle.kts gradle.properties \
+                   app/build.gradle.kts \
+                   app/src/main/AndroidManifest.xml \
+                   app/src/main/java/com/ujn/autodroid/core/TaskEngine.kt \
+                   app/src/main/res/layout/activity_main.xml; do
+            if [ -f "$f" ]; then
+              echo "  OK   $f"
+            else
+              echo "  MISS $f"
+              miss=$((miss+1))
+            fi
+          done
+          if [ "$miss" -gt 0 ]; then
+            echo "::error::有 $miss 个关键文件缺失"
+            exit 1
+          fi
+          echo "全部关键文件就位"
+
+      - name: Remove zip and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f AutoDroid.zip
+          git add -A
+          git commit -m "解压源码并移除 zip" || echo "无变化"
+          git push
